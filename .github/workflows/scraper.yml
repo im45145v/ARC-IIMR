@@ -1,0 +1,123 @@
+name: Alumni Data Scraper
+
+on:
+  # Run every 6 months (January 1st and July 1st at midnight)
+  schedule:
+    - cron: '0 0 1 1,7 *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      max_profiles:
+        description: 'Maximum profiles to scrape'
+        required: false
+        default: '100'
+      dry_run:
+        description: 'Dry run (no database updates)'
+        required: false
+        default: 'false'
+
+jobs:
+  scrape-alumni:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: alumni_admin
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: alumni_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps
+      
+      - name: Initialize database
+        env:
+          DATABASE_URL: postgresql://alumni_admin:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/alumni_db
+        run: |
+          python -c "
+          from src.database.models import init_db
+          import os
+          init_db(os.environ['DATABASE_URL'])
+          print('Database initialized successfully')
+          "
+      
+      - name: Load LinkedIn cookies
+        env:
+          LINKEDIN_COOKIES_1: ${{ secrets.LINKEDIN_COOKIES_1 }}
+          LINKEDIN_COOKIES_2: ${{ secrets.LINKEDIN_COOKIES_2 }}
+        run: |
+          mkdir -p cookies
+          if [ -n "$LINKEDIN_COOKIES_1" ]; then
+            echo "$LINKEDIN_COOKIES_1" > cookies/account_1.json
+            echo "Loaded cookies for account 1"
+          fi
+          if [ -n "$LINKEDIN_COOKIES_2" ]; then
+            echo "$LINKEDIN_COOKIES_2" > cookies/account_2.json
+            echo "Loaded cookies for account 2"
+          fi
+      
+      - name: Run scraper
+        env:
+          DATABASE_URL: postgresql://alumni_admin:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/alumni_db
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          BROWSER_HEADLESS: 'true'
+          MAX_PROFILES: ${{ github.event.inputs.max_profiles || '100' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python scripts/run_scraper.py --max-profiles $MAX_PROFILES $( [ "$DRY_RUN" = "true" ] && echo "--dry-run" )
+      
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scraper-logs
+          path: logs/
+          retention-days: 30
+      
+      - name: Send notification on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Alumni Scraper Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `The scheduled alumni scraper workflow failed.\n\nRun ID: ${context.runId}\nRun URL: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['bug', 'automated']
+            })
+
+  notify-success:
+    needs: scrape-alumni
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - name: Log success
+        run: |
+          echo "Alumni scraper completed successfully at $(date)"

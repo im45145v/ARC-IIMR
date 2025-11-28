@@ -3,7 +3,7 @@ Database repository module for Alumni Management System.
 Provides CRUD operations and query methods.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session
@@ -135,7 +135,7 @@ class AlumniRepository:
     
     def get_alumni_needing_scrape(self, days_since_last_scrape: int = 180) -> List[Alumni]:
         """Get alumni that need to be re-scraped."""
-        cutoff_date = datetime.now(timezone.utc)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_since_last_scrape)
         query = self.session.query(Alumni).filter(
             or_(
                 Alumni.last_scraped_at.is_(None),

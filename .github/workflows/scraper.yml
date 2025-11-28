@@ -17,9 +17,18 @@ on:
         required: false
         default: 'false'
 
+# Set minimal permissions at workflow level
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   scrape-alumni:
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      issues: write
     
     services:
       postgres:
@@ -116,6 +125,9 @@ jobs:
     needs: scrape-alumni
     runs-on: ubuntu-latest
     if: success()
+    
+    permissions:
+      contents: read
     
     steps:
       - name: Log success

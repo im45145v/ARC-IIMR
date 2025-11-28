@@ -19,6 +19,13 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 logger = logging.getLogger(__name__)
 
 
+def extract_linkedin_id_from_url(url: str) -> Optional[str]:
+    """Extract LinkedIn ID from URL."""
+    if not url or '/in/' not in url:
+        return None
+    return url.split('/in/')[-1].split('/')[0].split('?')[0]
+
+
 class LinkedInScraper:
     """
     LinkedIn profile scraper using Playwright.
@@ -264,8 +271,8 @@ class LinkedInScraper:
             
             # Extract LinkedIn ID from URL
             current_url = self.page.url
-            if '/in/' in current_url:
-                linkedin_id = current_url.split('/in/')[-1].split('/')[0].split('?')[0]
+            linkedin_id = extract_linkedin_id_from_url(current_url)
+            if linkedin_id:
                 data['linkedin_id'] = linkedin_id
             
             # Extract about/summary section
@@ -421,7 +428,7 @@ class LinkedInScraper:
                     download = await download_info.value
                     
                     # Generate unique filename
-                    linkedin_id = profile_url.split('/in/')[-1].split('/')[0].split('?')[0]
+                    linkedin_id = extract_linkedin_id_from_url(profile_url) or 'unknown'
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     filename = f"{linkedin_id}_{timestamp}.pdf"
                     filepath = self.download_dir / filename

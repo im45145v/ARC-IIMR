@@ -3,6 +3,7 @@ Helper utility functions for Alumni Management System.
 """
 
 import re
+from datetime import datetime
 from typing import Optional
 
 
@@ -190,8 +191,6 @@ def calculate_experience_years(jobs: list) -> int:
     Returns:
         Total years of experience (approximate)
     """
-    from datetime import datetime
-    
     total_months = 0
     
     for job in jobs:

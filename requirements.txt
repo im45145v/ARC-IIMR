@@ -1,9 +1,28 @@
-streamlit
-pandas
-psycopg2-binary
-python-dotenv
-openai
-altair
-xlsxwriter
-st-aggrid
-numpy
+
+# Web UI
+streamlit>=1.26.0,<2.0
+
+# Data
+pandas>=1.5.3,<2.0
+numpy>=1.24.0,<2.0
+
+# Database
+psycopg2-binary>=2.9.6
+
+# Environment
+python-dotenv>=1.0.0
+
+# OpenAI
+openai>=1.0.0
+
+# Visualization
+altair>=4.2.2
+
+# Excel export
+XlsxWriter>=3.1.2
+
+# Streamlit grid widget
+st-aggrid>=0.3.3
+
+# Optional (useful for local dev / debugging)
+# ipython

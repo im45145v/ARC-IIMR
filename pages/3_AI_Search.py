@@ -81,7 +81,7 @@ if not results:
     st.stop()
 
 for r in results:
-    with st.container(border=True):
+    with st.container():
 
         internal_id = r.get("alumni_internal_id") or r.get("internal_id")
         linkedin_id = r.get("linkedin_id")

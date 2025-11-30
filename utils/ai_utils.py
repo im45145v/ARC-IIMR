@@ -1,13 +1,23 @@
 import os
-from openai import OpenAI
 from dotenv import load_dotenv
 from .helpers import sanitize, safe_join
+
+# Try importing OpenAI SDK; if unavailable, set a flag and defer errors to runtime
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except Exception:
+    HAS_OPENAI = False
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Initialize client only if OpenAI package is present and key provided
+if HAS_OPENAI and OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    client = None
 
 
 # -------------------------------------------------------------
@@ -18,6 +28,9 @@ def get_embedding(text, model="text-embedding-3-small"):
     Convert text to embedding using OpenAI.
     Returns: python list of floats
     """
+    if not HAS_OPENAI or client is None:
+        raise RuntimeError("OpenAI client not available. Install the 'openai' package and set OPENAI_API_KEY in your environment.")
+
     text = sanitize(text)
 
     if not text or len(text.strip()) == 0:
@@ -110,6 +123,9 @@ def summarize_profile(profile_text):
     - Education
     """
 
+    if not HAS_OPENAI or client is None:
+        raise RuntimeError("OpenAI client not available. Install the 'openai' package and set OPENAI_API_KEY in your environment.")
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -118,7 +134,8 @@ def summarize_profile(profile_text):
         ]
     )
 
-    return response.choices[0].message["content"]
+    # Newer OpenAI SDK returns a ChatCompletionMessage object; access .content
+    return getattr(response.choices[0].message, "content", None)
 
 
 # -------------------------------------------------------------
@@ -147,6 +164,9 @@ def interpret_query(user_query):
     }
     """
 
+    if not HAS_OPENAI or client is None:
+        raise RuntimeError("OpenAI client not available. Install the 'openai' package and set OPENAI_API_KEY in your environment.")
+
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -156,4 +176,7 @@ def interpret_query(user_query):
     )
 
     import json
-    return json.loads(resp.choices[0].message["content"])
+    content = getattr(resp.choices[0].message, "content", None)
+    if content is None:
+        raise RuntimeError("No content returned from OpenAI chat completion.")
+    return json.loads(content)

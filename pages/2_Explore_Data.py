@@ -1,8 +1,26 @@
 import streamlit as st
 import pandas as pd
 from utils.db import fetch_df
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import io
+
+# Excel writer engine detection
+EXCEL_ENGINE = None
+try:
+    import xlsxwriter  # type: ignore
+    EXCEL_ENGINE = "xlsxwriter"
+except Exception:
+    try:
+        import openpyxl  # type: ignore
+        EXCEL_ENGINE = "openpyxl"
+    except Exception:
+        EXCEL_ENGINE = None
+
+# Optional AG-Grid support: provide graceful fallback if package not installed
+try:
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+    HAS_AGGRID = True
+except Exception:
+    HAS_AGGRID = False
 
 st.set_page_config(layout="wide")
 
@@ -80,36 +98,45 @@ if company_filter:
 
 st.subheader("📋 Alumni Records")
 
-gb = GridOptionsBuilder.from_dataframe(df_filtered)
-gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
-gb.configure_pagination(enabled=True, paginationPageSize=25)
-gb.configure_side_bar()
-gb.configure_selection("multiple")
+if HAS_AGGRID:
+    gb = GridOptionsBuilder.from_dataframe(df_filtered)
+    gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+    gb.configure_pagination(enabled=True, paginationPageSize=25)
+    gb.configure_side_bar()
+    gb.configure_selection("multiple")
 
-grid_options = gb.build()
+    grid_options = gb.build()
 
-grid_response = AgGrid(
-    df_filtered,
-    gridOptions=grid_options,
-    height=600,
-    width="100%",
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
-    data_return_mode="FILTERED",
-    enable_enterprise_modules=False
-)
+    grid_response = AgGrid(
+        df_filtered,
+        gridOptions=grid_options,
+        height=600,
+        width="100%",
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode="FILTERED",
+        enable_enterprise_modules=False
+    )
 
-selected = grid_response["selected_rows"]
+    selected = grid_response.get("selected_rows", [])
 
-if selected:
-    st.success(f"Selected {len(selected)} rows")
+    if selected:
+        st.success(f"Selected {len(selected)} rows")
+else:
+    st.warning("`st-aggrid` not installed — showing a simple table. Install with `pip install st-aggrid` for improved table features.")
+    st.dataframe(df_filtered)
+    selected = []
 
 # ----------------------------------------------------
 # EXPORT BUTTON
 # ----------------------------------------------------
 
 def export_excel(df):
+    """Return Excel bytes using available engine, or None if no engine is available."""
+    if EXCEL_ENGINE is None:
+        return None
+
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(output, engine=EXCEL_ENGINE) as writer:
         df.to_excel(writer, index=False, sheet_name="Alumni Data")
     return output.getvalue()
 
@@ -126,12 +153,16 @@ with col1:
     )
 
 with col2:
-    st.download_button(
-        "Download Excel",
-        export_excel(df_filtered),
-        file_name="alumni_export.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    excel_bytes = export_excel(df_filtered)
+    if excel_bytes is not None:
+        st.download_button(
+            "Download Excel",
+            excel_bytes,
+            file_name="alumni_export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.info("Excel export not available: install `XlsxWriter` or `openpyxl` (e.g. `pip install XlsxWriter openpyxl`) to enable this feature.")
 
 
 # ----------------------------------------------------

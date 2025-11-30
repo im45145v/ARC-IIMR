@@ -21,8 +21,10 @@ altair>=4.2.2
 # Excel export
 XlsxWriter>=3.1.2
 
-# Streamlit grid widget
-st-aggrid>=0.3.3
+# Streamlit grid widget (PyPI package name: streamlit-aggrid)
+# If pip cannot find a matching wheel for your Python version, install from GitHub:
+# pip install git+https://github.com/PablocFonseca/streamlit-aggrid.git
+streamlit-aggrid
 
 # Optional (useful for local dev / debugging)
 # ipython

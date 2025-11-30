@@ -8,139 +8,151 @@ st.set_page_config(layout="wide")
 # ----------------------------------------------------
 # HEADER
 # ----------------------------------------------------
-st.title("🏠 Alumni Dashboard")
-st.markdown("Overview of alumni dataset, distributions & trends.")
+st.title("🏠 Alumni Dashboard — Manager View")
+st.markdown(
+    "This page summarizes key alumni metrics and trends in a simple, executive-friendly layout. Use the filters to the left to focus on batches, locations or time ranges."
+)
 
 
 # ----------------------------------------------------
-# LOAD DATA
+# LOAD DATA (safe)
 # ----------------------------------------------------
+def safe_fetch(q):
+    try:
+        return fetch_df(q)
+    except Exception as e:
+        st.error(f"Data load failed: {e}")
+        return pd.DataFrame()
 
-# Total internal alumni
-df_internal = fetch_df("SELECT * FROM alumni_internal")
 
-# Total scraped external LinkedIn profiles
-df_external = fetch_df("SELECT * FROM alumni_external_linkedin")
-
-# Identity mapping table
-df_map = fetch_df("SELECT * FROM alumni_identity_map")
-
-# Experiences & skills
-df_experience = fetch_df("SELECT * FROM alumni_experiences")
-df_skills = fetch_df("SELECT * FROM alumni_skills")
+# Load datasets
+df_internal = safe_fetch("SELECT * FROM alumni_internal")
+df_external = safe_fetch("SELECT * FROM alumni_external_linkedin")
+df_map = safe_fetch("SELECT * FROM alumni_identity_map")
+df_experience = safe_fetch("SELECT * FROM alumni_experiences")
+df_skills = safe_fetch("SELECT * FROM alumni_skills")
 
 
 # ----------------------------------------------------
-# TOP METRICS
+# KPIs
 # ----------------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Total Internal Alumni", len(df_internal))
-col2.metric("LinkedIn Profiles", len(df_external))
-col3.metric("Mapped Profiles", len(df_map))
-col4.metric("Experiences Logged", len(df_experience))
+col1.metric("Total Internal Alumni", int(len(df_internal)))
+col2.metric("LinkedIn Profiles Scraped", int(len(df_external)))
+col3.metric("Profiles Mapped", f"{int(len(df_map))}")
+col4.metric("Experience Records", int(len(df_experience)))
+
+st.markdown("---")
 
 
 # ----------------------------------------------------
-# Mapped vs Unmapped
+# MAPPING STATUS (simple)
 # ----------------------------------------------------
 st.subheader("🔗 Mapping Status")
+if df_internal.empty:
+    st.info("No internal alumni data available.")
+else:
+    mapped_internal_ids = set(df_map.get("internal_id", [])) if not df_map.empty else set()
+    mapped = len(mapped_internal_ids)
+    unmapped = len(df_internal) - mapped
 
-mapped_internal_ids = set(df_map["internal_id"])
-unmapped = len(df_internal) - len(mapped_internal_ids)
-
-map_df = pd.DataFrame({
-    "Status": ["Mapped", "Unmapped"],
-    "Count": [len(df_map), unmapped]
-})
-
-chart = alt.Chart(map_df).mark_arc().encode(
-    theta="Count",
-    color="Status",
-    tooltip=["Status", "Count"]
-)
-
-st.altair_chart(chart, use_container_width=True)
-
+    status_df = pd.DataFrame({"Status": ["Mapped", "Unmapped"], "Count": [mapped, unmapped]})
+    pie = alt.Chart(status_df).mark_arc().encode(theta="Count", color="Status")
+    st.altair_chart(pie, use_container_width=True)
 
 # ----------------------------------------------------
-# Batch Distribution
+# VISUALS: Batch distribution, Top Skills, Top Companies, City distribution
+# Use Altair charts for manager-friendly visuals
 # ----------------------------------------------------
-st.subheader("🎓 Batch Distribution")
-if "batch" in df_internal.columns:
-    batch_df = df_internal["batch"].value_counts().reset_index()
+st.subheader("🎓 Batch Distribution (Top 20)")
+if "batch" in df_internal.columns and not df_internal.empty:
+    batch_df = df_internal['batch'].value_counts().head(20).reset_index()
     batch_df.columns = ["Batch", "Count"]
-
     chart_batch = alt.Chart(batch_df).mark_bar().encode(
-        x="Batch",
-        y="Count",
-        tooltip=["Batch", "Count"]
+        x=alt.X('Batch:N', sort='-y'),
+        y='Count:Q',
+        tooltip=['Batch', 'Count']
     )
-
     st.altair_chart(chart_batch, use_container_width=True)
 else:
-    st.info("Batch column not found in alumni_internal table.")
+    st.info("Batch data not available.")
 
-
-# ----------------------------------------------------
-# Top Skills
-# ----------------------------------------------------
-st.subheader("💡 Top Skills (Most Common)")
-
-if len(df_skills) > 0:
-    top_skills = df_skills["skill_name"].value_counts().head(15).reset_index()
-    top_skills.columns = ["skill", "count"]
-
+st.subheader("💡 Top Skills (Top 15)")
+if not df_skills.empty and 'skill_name' in df_skills.columns:
+    top_skills = df_skills['skill_name'].value_counts().head(15).reset_index()
+    top_skills.columns = ["Skill", "Count"]
     skill_chart = alt.Chart(top_skills).mark_bar().encode(
-        x="count",
-        y=alt.Y("skill", sort="-x"),
-        tooltip=["skill", "count"]
+        x='Count:Q',
+        y=alt.Y('Skill:N', sort='-x'),
+        tooltip=['Skill', 'Count']
     )
     st.altair_chart(skill_chart, use_container_width=True)
 else:
-    st.info("No skills data available.")
+    st.info("Skills data not available.")
 
-
-# ----------------------------------------------------
-# Top Companies (From Experience)
-# ----------------------------------------------------
-st.subheader("🏢 Top Companies (Experience Data)")
-
-if len(df_experience) > 0:
-    company_df = df_experience["company_name"].value_counts().head(15).reset_index()
-    company_df.columns = ["company", "count"]
-
+st.subheader("🏢 Top Companies (Top 15)")
+if not df_experience.empty and 'company_name' in df_experience.columns:
+    company_df = df_experience['company_name'].value_counts().head(15).reset_index()
+    company_df.columns = ["Company", "Count"]
     chart_comp = alt.Chart(company_df).mark_bar().encode(
-        x="count",
-        y=alt.Y("company", sort="-x"),
-        tooltip=["company", "count"]
+        x='Count:Q',
+        y=alt.Y('Company:N', sort='-x'),
+        tooltip=['Company', 'Count']
     )
     st.altair_chart(chart_comp, use_container_width=True)
 else:
-    st.info("No experience data available.")
+    st.info("Experience/company data not available.")
 
-
-# ----------------------------------------------------
-# City Distribution (if present)
-# ----------------------------------------------------
 st.subheader("🌍 City Distribution (Top 10)")
-
-if "city" in df_external.columns:
-    city_df = df_external["city"].value_counts().head(10).reset_index()
+if not df_external.empty and 'city' in df_external.columns:
+    city_df = df_external['city'].value_counts().head(10).reset_index()
     city_df.columns = ["city", "count"]
-
     city_chart = alt.Chart(city_df).mark_bar().encode(
-        x="count",
-        y=alt.Y("city", sort="-x"),
-        tooltip=["city", "count"]
+        x='count:Q',
+        y=alt.Y('city:N', sort='-x'),
+        tooltip=['city', 'count']
     )
     st.altair_chart(city_chart, use_container_width=True)
 else:
-    st.info("City column missing from LinkedIn data.")
+    st.info("City data not available.")
 
 
 # ----------------------------------------------------
-# FOOTER
+# Top metrics and distributions (manager friendly)
 # ----------------------------------------------------
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.subheader("🎓 Batch Distribution (Top)")
+    if "batch" in df_internal.columns and not df_internal.empty:
+        batch_df = df_internal['batch'].value_counts().head(10).reset_index()
+        batch_df.columns = ["Batch", "Count"]
+        st.table(batch_df)
+    else:
+        st.info("Batch data not available.")
+
+with col_b:
+    st.subheader("💡 Top Skills (Summary)")
+    if not df_skills.empty and 'skill_name' in df_skills.columns:
+        top_skills = df_skills['skill_name'].value_counts().head(10).reset_index()
+        top_skills.columns = ["Skill", "Count"]
+        st.table(top_skills)
+    else:
+        st.info("Skills data not available.")
+
+
 st.markdown("---")
-st.caption("Dashboard powered by Supabase + Streamlit 🚀")
+
+st.subheader("🏢 Top Companies (from experience)")
+if not df_experience.empty and 'company_name' in df_experience.columns:
+    company_df = df_experience['company_name'].value_counts().head(10).reset_index()
+    company_df.columns = ["Company", "Count"]
+    st.table(company_df)
+else:
+    st.info("Experience/company data not available.")
+
+
+# FOOTER
+st.markdown("---")
+st.caption("Dashboard — executive summary. Export any table from individual pages.")

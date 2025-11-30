@@ -3,6 +3,7 @@ import psycopg2
 import pandas as pd
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+import functools
 
 load_dotenv()
 
@@ -16,6 +17,23 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
+@functools.lru_cache(maxsize=32)
+def get_table_columns(table_name: str):
+    """Return a set of column names for the given table (cached)."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = %s;",
+            (table_name,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+        return set(r['column_name'] for r in rows)
+    except Exception:
+        return set()
+
+
 # -----------------------------------------------------------------------
 # RUN A SELECT QUERY AND RETURN A PANDAS DATAFRAME
 # -----------------------------------------------------------------------
@@ -23,7 +41,10 @@ def get_conn():
 def fetch_df(query, params=None):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(query, params or ())
+    if params is None:
+        cur.execute(query)
+    else:
+        cur.execute(query, params)
     rows = cur.fetchall()
     conn.close()
     return pd.DataFrame(rows)
@@ -36,7 +57,10 @@ def fetch_df(query, params=None):
 def run_sql(query, params=None):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(query, params or ())
+    if params is None:
+        cur.execute(query)
+    else:
+        cur.execute(query, params)
     conn.commit()
     conn.close()
 
@@ -48,7 +72,10 @@ def run_sql(query, params=None):
 def fetch_all(query, params=None):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(query, params or ())
+    if params is None:
+        cur.execute(query)
+    else:
+        cur.execute(query, params)
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -57,7 +84,10 @@ def fetch_all(query, params=None):
 def fetch_one(query, params=None):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(query, params or ())
+    if params is None:
+        cur.execute(query)
+    else:
+        cur.execute(query, params)
     row = cur.fetchone()
     conn.close()
     return row

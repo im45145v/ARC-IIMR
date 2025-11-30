@@ -15,8 +15,9 @@ st.set_page_config(
 # App Header
 st.markdown("""
 # 🎓 IIM Alumni Intelligence Dashboard  
-Welcome to your centralized alumni intelligence platform.  
-Use the sidebar to navigate across different modules.
+Welcome to your centralized alumni intelligence platform.
+
+Use the sidebar to navigate across modules. Toggle between **Manager View** (high level KPIs) and **Data View** (detailed tables).
 ---
 """)
 

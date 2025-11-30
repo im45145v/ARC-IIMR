@@ -5,8 +5,10 @@ from utils.helpers import sanitize, linkedin_slug
 
 st.set_page_config(layout="wide")
 
-st.title("📝 Add / Edit Alumni Data")
-st.markdown("Use this page to manually add new alumni or update existing records in `alumni_internal` and mappings.")
+st.title("📝 Add / Edit Alumni Data — Simple Manager-Friendly Form")
+st.markdown(
+    "Use this page to add or update alumni records. Non-technical users: fill the required fields and click the buttons. Use the Edit tab to safely update mappings."
+)
 
 st.divider()
 
@@ -59,7 +61,7 @@ with tab_add:
 
         if submitted_add:
             if not student_name.strip():
-                st.error("Student Name is required.")
+                st.error("Student Name is required. Please enter a full name.")
             else:
                 # Insert into alumni_internal
                 insert_sql = """
@@ -73,25 +75,28 @@ with tab_add:
 
                 slug = linkedin_slug(linkedin_url) if linkedin_url else None
 
-                run_sql(
-                    insert_sql,
-                    [
-                        sanitize(student_name),
-                        sanitize(batch),
-                        sanitize(roll_no),
-                        sanitize(gender),
-                        sanitize(whatsapp_no),
-                        sanitize(mobile_no),
-                        sanitize(college_email),
-                        sanitize(personal_email),
-                        sanitize(corporate_email),
-                        sanitize(linkedin_url),
-                        slug,
-                        sanitize(por),
-                    ],
-                )
-
-                st.success("✅ New alumni record added to `alumni_internal`.")
+                try:
+                    run_sql(
+                        insert_sql,
+                        [
+                            sanitize(student_name),
+                            sanitize(batch),
+                            sanitize(roll_no),
+                            sanitize(gender),
+                            sanitize(whatsapp_no),
+                            sanitize(mobile_no),
+                            sanitize(college_email),
+                            sanitize(personal_email),
+                            sanitize(corporate_email),
+                            sanitize(linkedin_url),
+                            slug,
+                            sanitize(por),
+                        ],
+                    )
+                    st.success("✅ New alumni record added.")
+                    st.info("Tip: Refresh other pages to see updated data.")
+                except Exception as e:
+                    st.error(f"Failed to add record: {e}")
 
 
 # ====================================================
